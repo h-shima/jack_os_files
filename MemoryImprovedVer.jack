@@ -1,0 +1,107 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/12/Memory.jack
+
+/**
+ * This library provides two services: direct access to the computer's main
+ * memory (RAM), and allocation and recycling of memory blocks. The Hack RAM
+ * consists of 32,768 words, each holding a 16-bit binary number.
+ */
+
+
+// 改善版メモリ割り当てアルゴリズム
+class Memory {
+    static Array memory, freeList;
+    static int heapBase, heapEnd;
+
+    /** Initializes the class. */
+    function void init() {
+      let memory = 0;
+      let heapBase = 2048;
+      let heapEnd = 16383;
+
+      let freeList = heapBase;
+      let freeList[0] = (heapEnd - heapBase) + 1; // segment.length == segment[0]
+      let freeList[1] = null; // segment.next == segment[1]
+
+      return;
+    }
+
+    /** Returns the RAM value at the given address. */
+    function int peek(int address) {
+        return memory[address];
+    }
+
+    /** Sets the RAM value at the given address to the given value. */
+    function void poke(int address, int value) {
+        let memory[address] = value;
+
+        return;
+    }
+
+    /** Finds an available RAM block of the given size and returns
+     *  a reference to its base address. */
+    function int alloc(int size) {
+      var Array segment;
+      let segment = Memory.firstFit(size);
+
+      // 割り当てられたメモリセグメントの開始場所をリターンする
+      // NOTE: segmentにはメモリセグメントの大きさが入っている
+      return segment + 1;
+    }
+
+    function Array firstFit(int size) {
+      var Array currentSegment, prevSegment, nextSegment, returnBlock;
+      var int allocSize;
+      let allocSize = size + 1;
+
+      let prevSegment = null;
+      let currentSegment = freeList;
+
+      while (currentSegment[0] < allocSize) {
+        if (currentSegment[1] = null) {
+          // リストの終端であるということ
+          // TODO: 理想的には、ここでデフラグできると良い
+          do Sys.error(1);
+          return 0;
+        } else {
+          // 探索するリストを次へ進める
+          let prevSegment = currentSegment;
+          let currentSegment = currentSegment[1];
+        }
+      }
+
+      // 残るセグメントが2よりも小さければ、そのセグメント全ての返却する
+      if ((currentSegment[0] - allocSize) < 2) {
+        let returnBlock = currentSegment;
+
+        // currentSegmentを全て確保、returnしてしまったため、前後のセグメントをリストとしてつなぐ
+        let nextSegment = currentSegment[1];
+        let prevSegment[1] = nextSegment;
+      } else {
+        // 返却するメモリセグメントのベースアドレスを計算
+        let returnBlock = currentSegment + (currentSegment[0] - allocSize);
+        let returnBlock[0] = allocSize;
+
+        let currentSegment[0] = currentSegment[0] - allocSize;
+      }
+
+      return returnBlock;
+    }
+
+    /** De-allocates the given object (cast as an array) by making
+     *  it available for future allocations. */
+     function void deAlloc(Array o) {
+       var Array segment;
+       // segmentのベースアドレスを、segmentの大きさが入っているメモリにセットする
+       // このとき、segment[0]には、メモリセグメントの大きさが入っている状態
+       let segment = o - 1;
+
+       // freeListの先頭に解放したメモリセグメントを追加する
+       let segment[1] = freeList;
+       let freeList = segment;
+
+       return;
+     }
+}
